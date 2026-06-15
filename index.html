@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fretboard Trainer — Guitar Note Practice</title>
+  <meta name="description" content="Practice and memorize the notes on your guitar fretboard with a randomized note-drill timer." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <h1 class="app-title">Fretboard Trainer</h1>
+      <p class="app-tagline">Memorize the notes on your guitar, one string at a time.</p>
+    </header>
+
+    <main class="layout">
+      <!-- ============ CONTROLS ============ -->
+      <section class="panel controls" aria-label="Practice settings">
+        <!-- String selector -->
+        <div class="control-group">
+          <label class="control-label">String</label>
+          <div id="string-selector" class="segmented string-selector" role="radiogroup" aria-label="Select string">
+            <!-- buttons injected by app.js -->
+          </div>
+        </div>
+
+        <!-- Cycle timer -->
+        <div class="control-group">
+          <label class="control-label" for="cycle-input">Cycle (seconds)</label>
+          <div class="cycle-row">
+            <div id="cycle-presets" class="segmented" role="group" aria-label="Cycle presets">
+              <button type="button" class="seg-btn" data-cycle="3">3s</button>
+              <button type="button" class="seg-btn" data-cycle="5">5s</button>
+              <button type="button" class="seg-btn" data-cycle="10">10s</button>
+            </div>
+            <input
+              id="cycle-input"
+              class="cycle-input"
+              type="number"
+              min="1"
+              max="60"
+              step="1"
+              value="5"
+              inputmode="numeric"
+              aria-label="Custom cycle seconds"
+            />
+          </div>
+        </div>
+
+        <!-- Mode toggle -->
+        <div class="control-group">
+          <label class="control-label">Mode</label>
+          <div id="mode-toggle" class="segmented" role="radiogroup" aria-label="Practice mode">
+            <button type="button" class="seg-btn" data-mode="guide" role="radio" aria-checked="true">Guide</button>
+            <button type="button" class="seg-btn" data-mode="practice" role="radio" aria-checked="false">Practice</button>
+          </div>
+          <p class="control-hint" id="mode-hint">Guide shows the fretboard with the note's position.</p>
+        </div>
+
+        <!-- Start / Stop -->
+        <button id="start-stop" class="btn-primary" type="button">Start</button>
+      </section>
+
+      <!-- ============ STAGE ============ -->
+      <section class="panel stage" aria-label="Practice area">
+        <div class="note-display">
+          <!-- countdown ring sits behind the note -->
+          <svg class="countdown" viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="countdown-track" cx="60" cy="60" r="54" />
+            <circle id="countdown-arc" class="countdown-arc" cx="60" cy="60" r="54" />
+          </svg>
+          <div class="note-text" id="note-text" aria-live="polite">—</div>
+        </div>
+        <div class="stage-meta">
+          <span id="string-readout" class="string-readout">Low E string</span>
+        </div>
+
+        <!-- Fretboard (Guide mode only) -->
+        <div class="fretboard-wrap" id="fretboard-wrap">
+          <div id="fretboard" class="fretboard" aria-label="Guitar fretboard"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <span>Standard tuning · Frets 1–17 · Chromatic notes</span>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
