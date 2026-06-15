@@ -63,8 +63,9 @@
 
   // Geometry constants (viewBox units).
   const G = {
-    padLeft: 48, padRight: 18, padTop: 26, padBottom: 28,
-    fretSpacing: 40, stringSpacing: 26, fretCount: FRET_MAX,
+    padLeft: 52, padRight: 20, padTop: 48, padBottom: 32,
+    fretSpacing: 44, stringSpacing: 48, fretCount: FRET_MAX,
+    boardPadY: 20, // board/wire overhang above & below the outer strings
   };
   G.nutX = G.padLeft;
   G.boardRight = G.nutX + G.fretCount * G.fretSpacing;
@@ -87,7 +88,7 @@
   function stringY(stringIndex) { return G.boardTop + displayRow(stringIndex) * G.stringSpacing; }
 
   const fb = {
-    svg: null, dotLayer: null, selectedRow: null, labels: [],
+    svg: null, dotLayer: null, mapLayer: null, selectedRow: null, labels: [],
   };
 
   function buildFretboard(container) {
@@ -108,10 +109,10 @@
     // Board background.
     svg.appendChild(svgEl("rect", {
       class: "fb-board",
-      x: G.nutX, y: G.boardTop - 11,
+      x: G.nutX, y: G.boardTop - G.boardPadY,
       width: G.boardRight - G.nutX,
-      height: (G.boardBottom - G.boardTop) + 22,
-      rx: 6,
+      height: (G.boardBottom - G.boardTop) + 2 * G.boardPadY,
+      rx: 7,
     }));
 
     // Selected-string highlight (repositioned on selection).
@@ -126,25 +127,40 @@
     // Inlay markers.
     const midY = (G.boardTop + G.boardBottom) / 2;
     SINGLE_INLAYS.forEach((f) => {
-      svg.appendChild(svgEl("circle", { class: "fb-inlay", cx: fretCenterX(f), cy: midY, r: 5 }));
+      svg.appendChild(svgEl("circle", { class: "fb-inlay", cx: fretCenterX(f), cy: midY, r: 8.5 }));
     });
     DOUBLE_INLAYS.forEach((f) => {
-      svg.appendChild(svgEl("circle", { class: "fb-inlay", cx: fretCenterX(f), cy: G.boardTop + 1.5 * G.stringSpacing, r: 5 }));
-      svg.appendChild(svgEl("circle", { class: "fb-inlay", cx: fretCenterX(f), cy: G.boardTop + 3.5 * G.stringSpacing, r: 5 }));
+      svg.appendChild(svgEl("circle", { class: "fb-inlay", cx: fretCenterX(f), cy: G.boardTop + 1.5 * G.stringSpacing, r: 8.5 }));
+      svg.appendChild(svgEl("circle", { class: "fb-inlay", cx: fretCenterX(f), cy: G.boardTop + 3.5 * G.stringSpacing, r: 8.5 }));
     });
+
+    // Above-neck fret-position markers. The on-board inlays get covered by the
+    // all-notes labels, so this row (shown via the .show-notes class) keeps a
+    // fret reference visible just above the guitar when "Show all notes" is on.
+    const markerLayer = svgEl("g", { class: "fb-markerlayer" });
+    const markerY = G.boardTop - G.boardPadY - 14;
+    SINGLE_INLAYS.forEach((f) => {
+      markerLayer.appendChild(svgEl("circle", { class: "fb-marker", cx: fretCenterX(f), cy: markerY, r: 5.5 }));
+    });
+    DOUBLE_INLAYS.forEach((f) => {
+      // octave fret -> double marker (two dots side by side)
+      markerLayer.appendChild(svgEl("circle", { class: "fb-marker", cx: fretCenterX(f) - 6.5, cy: markerY, r: 5 }));
+      markerLayer.appendChild(svgEl("circle", { class: "fb-marker", cx: fretCenterX(f) + 6.5, cy: markerY, r: 5 }));
+    });
+    svg.appendChild(markerLayer);
 
     // Fret wires (1..17).
     for (let f = 1; f <= G.fretCount; f++) {
       svg.appendChild(svgEl("line", {
         class: "fb-fret",
-        x1: fretWireX(f), y1: G.boardTop - 11,
-        x2: fretWireX(f), y2: G.boardBottom + 11,
+        x1: fretWireX(f), y1: G.boardTop - G.boardPadY,
+        x2: fretWireX(f), y2: G.boardBottom + G.boardPadY,
       }));
     }
     // Nut (thicker, at fret 0).
     svg.appendChild(svgEl("line", {
       class: "fb-nut",
-      x1: G.nutX, y1: G.boardTop - 11, x2: G.nutX, y2: G.boardBottom + 11,
+      x1: G.nutX, y1: G.boardTop - G.boardPadY, x2: G.nutX, y2: G.boardBottom + G.boardPadY,
     }));
 
     // Strings (thicker for lower/bass strings).
@@ -171,7 +187,12 @@
       svg.appendChild(t);
     }
 
-    // Dot layer (drawn last so dots sit on top).
+    // All-notes reference map layer (sits below the active drill dots).
+    const mapLayer = svgEl("g", { class: "fb-maplayer" });
+    svg.appendChild(mapLayer);
+    fb.mapLayer = mapLayer;
+
+    // Dot layer (drawn last so the active drill dots sit on top).
     const dotLayer = svgEl("g", { class: "fb-dotlayer" });
     svg.appendChild(dotLayer);
     fb.dotLayer = dotLayer;
@@ -199,11 +220,32 @@
     const y = stringY(stringIndex);
     fretsForNote(s.openIndex, note).forEach((f) => {
       const g = svgEl("g", { class: "fb-dot-group" });
-      g.appendChild(svgEl("circle", { class: "fb-dot", cx: fretCenterX(f), cy: y, r: 11 }));
+      g.appendChild(svgEl("circle", { class: "fb-dot", cx: fretCenterX(f), cy: y, r: 19 }));
       const t = svgEl("text", { class: "fb-dot-label", x: fretCenterX(f), y: y });
       t.textContent = note;
       g.appendChild(t);
       fb.dotLayer.appendChild(g);
+    });
+  }
+
+  function clearMap() {
+    if (fb.mapLayer) fb.mapLayer.textContent = "";
+  }
+
+  // Label every fret (1..17) on all six strings with its note name.
+  function renderAllNotes(on) {
+    clearMap();
+    if (!on) return;
+    STRINGS.forEach((s, i) => {
+      const y = stringY(i);
+      for (let f = FRET_MIN; f <= FRET_MAX; f++) {
+        const g = svgEl("g", { class: "fb-map-group" });
+        g.appendChild(svgEl("circle", { class: "fb-map-dot", cx: fretCenterX(f), cy: y, r: 17 }));
+        const t = svgEl("text", { class: "fb-map-label", x: fretCenterX(f), y: y });
+        t.textContent = noteAtFret(s.openIndex, f);
+        g.appendChild(t);
+        fb.mapLayer.appendChild(g);
+      }
     });
   }
 
@@ -215,6 +257,7 @@
   const state = {
     running: false,
     mode: "guide",        // "guide" | "practice"
+    showNotes: false,     // all-notes reference map toggle
     stringIndex: 0,       // low E
     cycleMs: 5000,
     prevNote: null,
@@ -222,6 +265,12 @@
     cycleStart: 0,
     rafId: null,
   };
+
+  // The fretboard is on screen in Guide mode, or whenever the all-notes map
+  // is toggled on (which reveals the board even in Practice mode).
+  function boardVisible() {
+    return state.mode === "guide" || state.showNotes;
+  }
 
   // DOM refs (assigned on init).
   const dom = {};
@@ -236,7 +285,7 @@
     dom.noteText.textContent = note;
     dom.noteText.classList.remove("is-empty");
     popNote();
-    if (state.mode === "guide") showDots(state.stringIndex, note);
+    if (boardVisible()) showDots(state.stringIndex, note);
     else clearDots();
   }
 
@@ -328,8 +377,8 @@
     });
     dom.stringReadout.textContent = STRINGS[i].readout;
     setSelectedString(i);
-    // Re-render dots live if a note is on screen in guide mode.
-    if (state.mode === "guide" && state.currentNote) showDots(i, state.currentNote);
+    // Re-render the active note's dots live whenever the board is visible.
+    if (boardVisible() && state.currentNote) showDots(i, state.currentNote);
   }
 
   function setMode(mode) {
@@ -343,7 +392,19 @@
     dom.modeHint.textContent = mode === "guide"
       ? "Guide shows the fretboard with the note's position."
       : "Practice shows only the note name — no diagram.";
-    if (mode === "guide" && state.currentNote) showDots(state.stringIndex, state.currentNote);
+    if (boardVisible() && state.currentNote) showDots(state.stringIndex, state.currentNote);
+    else clearDots();
+  }
+
+  function setShowNotes(on) {
+    state.showNotes = on;
+    dom.app.classList.toggle("show-notes", on);
+    dom.showNotesToggle.classList.toggle("is-on", on);
+    dom.showNotesToggle.setAttribute("aria-checked", on ? "true" : "false");
+    renderAllNotes(on);
+    // Toggling the map can reveal/hide the board (Practice mode); keep the
+    // active drill note's dots in sync with the board's visibility.
+    if (boardVisible() && state.currentNote) showDots(state.stringIndex, state.currentNote);
     else clearDots();
   }
 
@@ -365,6 +426,7 @@
     dom.cycleInput = document.getElementById("cycle-input");
     dom.modeToggle = document.getElementById("mode-toggle");
     dom.modeHint = document.getElementById("mode-hint");
+    dom.showNotesToggle = document.getElementById("show-notes-toggle");
     dom.startStop = document.getElementById("start-stop");
     dom.noteText = document.getElementById("note-text");
     dom.stringReadout = document.getElementById("string-readout");
@@ -380,6 +442,7 @@
     buildStringSelector();
     selectString(state.stringIndex);
     setMode(state.mode);
+    setShowNotes(state.showNotes);
 
     // Highlight the matching cycle preset (default 5s).
     Array.from(dom.cyclePresets.children).forEach((btn) => {
@@ -409,6 +472,7 @@
         state.cycleStart = performance.now();
       }
     });
+    dom.showNotesToggle.addEventListener("click", () => setShowNotes(!state.showNotes));
     dom.startStop.addEventListener("click", toggleRun);
 
     // Spacebar toggles Start/Stop (ignore when a button/input is focused so it

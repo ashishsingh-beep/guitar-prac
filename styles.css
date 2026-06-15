@@ -48,7 +48,7 @@ body {
 }
 
 .app {
-  max-width: 1080px;
+  max-width: 1340px;
   margin: 0 auto;
   padding: 32px 20px 48px;
   min-height: 100%;
@@ -214,6 +214,46 @@ body {
   box-shadow: inset 0 0 0 1px var(--danger), 0 8px 20px rgba(239, 90, 111, 0.18);
 }
 
+/* Toggle switch */
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 2px;
+  cursor: pointer;
+}
+.switch-track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  transition: background 0.18s, border-color 0.18s;
+}
+.switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--text-mute);
+  transition: transform 0.18s, background 0.18s;
+}
+.switch:hover .switch-text { color: var(--text); }
+.switch.is-on .switch-track { background: var(--accent-soft); border-color: rgba(45, 212, 167, 0.5); }
+.switch.is-on .switch-thumb { transform: translateX(18px); background: var(--accent); }
+.switch.is-on .switch-text { color: var(--accent); }
+
 /* ---------------- Stage ---------------- */
 .stage {
   padding: 28px 24px 30px;
@@ -284,7 +324,7 @@ body {
   margin-top: 8px;
   overflow-x: auto;
 }
-.fretboard { width: 100%; min-width: 560px; }
+.fretboard { width: 100%; min-width: 760px; }
 .fretboard svg { width: 100%; height: auto; display: block; }
 
 /* SVG element styling (classes set in JS) */
@@ -295,21 +335,34 @@ body {
 .fb-string-row { fill: transparent; }
 .fb-string-row.is-selected { fill: rgba(45, 212, 167, 0.07); }
 .fb-inlay { fill: var(--inlay); }
-.fb-fretnum { fill: var(--text-mute); font-size: 11px; font-weight: 600; text-anchor: middle; }
-.fb-strlabel { fill: var(--text-dim); font-size: 12px; font-weight: 700; text-anchor: end; dominant-baseline: middle; }
+.fb-fretnum { fill: var(--text-mute); font-size: 15px; font-weight: 600; text-anchor: middle; }
+.fb-strlabel { fill: var(--text-dim); font-size: 18px; font-weight: 700; text-anchor: end; dominant-baseline: middle; }
 .fb-strlabel.is-selected { fill: var(--accent); }
 
 .fb-dot { fill: var(--accent); stroke: #04140f; stroke-width: 1.5; }
-.fb-dot-label { fill: #04140f; font-size: 12px; font-weight: 800; text-anchor: middle; dominant-baseline: central; }
+.fb-dot-label { fill: #04140f; font-size: 19px; font-weight: 800; text-anchor: middle; dominant-baseline: central; }
 .fb-dot-group { animation: dotPop 0.3s ease; transform-box: fill-box; transform-origin: center; }
 @keyframes dotPop {
   0%   { opacity: 0; transform: scale(0.4); }
   100% { opacity: 1; transform: scale(1); }
 }
 
-/* Practice mode hides the board */
+/* Above-neck fret-position markers — only shown while the all-notes map is on
+   (the on-board inlays are hidden behind the note labels then). */
+.fb-marker { fill: #6b7280; }
+.fb-markerlayer { opacity: 0; transition: opacity 0.2s ease; }
+.app.show-notes .fb-markerlayer { opacity: 1; }
+
+/* All-notes reference map (muted dots beneath the active drill dots) */
+.fb-map-dot { fill: #2a3140; stroke: #39414f; stroke-width: 1; }
+.fb-map-label { fill: #aeb6c4; font-size: 14.5px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+
+/* Practice mode hides the board... */
 .app.mode-practice .fretboard-wrap { display: none; }
 .app.mode-practice .stage { min-height: 360px; justify-content: center; }
+/* ...unless the all-notes map is on, which reveals it for study. */
+.app.mode-practice.show-notes .fretboard-wrap { display: block; }
+.app.mode-practice.show-notes .stage { min-height: 420px; justify-content: flex-start; }
 
 /* ---------------- Footer ---------------- */
 .app-footer {
