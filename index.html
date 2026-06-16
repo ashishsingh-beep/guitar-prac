@@ -17,12 +17,25 @@
     <main class="layout">
       <!-- ============ CONTROLS ============ -->
       <section class="panel controls" aria-label="Practice settings">
+        <!-- Notes per cycle -->
+        <div class="control-group">
+          <label class="control-label">Notes per cycle</label>
+          <div id="group-selector" class="segmented" role="radiogroup" aria-label="Notes per cycle">
+            <button type="button" class="seg-btn" data-group="1" role="radio" aria-checked="true">1</button>
+            <button type="button" class="seg-btn" data-group="3" role="radio" aria-checked="false">3</button>
+            <button type="button" class="seg-btn" data-group="5" role="radio" aria-checked="false">5</button>
+            <button type="button" class="seg-btn" data-group="7" role="radio" aria-checked="false">7</button>
+          </div>
+          <p class="control-hint">Groups of 3/5/7 are drawn from a major/minor scale (triad, pentatonic, scale, or random degrees).</p>
+        </div>
+
         <!-- String selector -->
         <div class="control-group">
           <label class="control-label">String</label>
           <div id="string-selector" class="segmented string-selector" role="radiogroup" aria-label="Select string">
             <!-- buttons injected by app.js -->
           </div>
+          <p class="control-hint" id="string-hint">Whole-fretboard view — string selection applies to single-note mode.</p>
         </div>
 
         <!-- Cycle timer -->
@@ -84,6 +97,13 @@
         </div>
         <div class="stage-meta">
           <span id="string-readout" class="string-readout">Low E string</span>
+        </div>
+
+        <!-- Group display (3/5/7 notes per cycle) -->
+        <div class="group-display">
+          <div class="countdown-bar" aria-hidden="true"><div id="countdown-bar-fill"></div></div>
+          <div id="notes-row" class="notes-row" aria-live="polite"></div>
+          <div id="group-annotation" class="group-annotation" aria-live="polite"></div>
         </div>
 
         <!-- Fretboard (Guide mode only) -->

@@ -357,12 +357,77 @@ body {
 .fb-map-dot { fill: #2a3140; stroke: #39414f; stroke-width: 1; }
 .fb-map-label { fill: #aeb6c4; font-size: 14.5px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
 
+/* Group note dots (whole-fretboard view; fill set per-note in JS) */
+.fb-gdot { stroke: #04140f; stroke-width: 1.2; }
+.fb-gdot-label { fill: #04140f; font-size: 12px; font-weight: 800; text-anchor: middle; dominant-baseline: central; }
+
 /* Practice mode hides the board... */
 .app.mode-practice .fretboard-wrap { display: none; }
 .app.mode-practice .stage { min-height: 360px; justify-content: center; }
 /* ...unless the all-notes map is on, which reveals it for study. */
 .app.mode-practice.show-notes .fretboard-wrap { display: block; }
 .app.mode-practice.show-notes .stage { min-height: 420px; justify-content: flex-start; }
+
+/* ---------------- Group display (3/5/7 notes per cycle) ---------------- */
+.group-display { display: none; }
+.app.group-multi .group-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+.app.group-multi .note-display,
+.app.group-multi .stage-meta { display: none; }
+
+.countdown-bar {
+  width: min(440px, 86%);
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+#countdown-bar-fill {
+  height: 100%;
+  width: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.notes-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+.note-chip {
+  color: #04140f;
+  font-weight: 800;
+  font-size: clamp(1.6rem, 4vw, 2.6rem);
+  line-height: 1;
+  padding: 12px 18px;
+  min-width: 52px;
+  text-align: center;
+  border-radius: 14px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+.notes-row.pop { animation: notePop 0.35s ease; }
+
+.group-annotation {
+  color: var(--text-dim);
+  font-size: 0.98rem;
+  text-align: center;
+  max-width: 92%;
+  line-height: 1.6;
+}
+.group-annotation .ga-scale { color: var(--text); font-weight: 700; }
+.group-annotation .ga-note { font-weight: 700; }
+
+/* String selection doesn't apply in the whole-fretboard group mode. */
+#string-hint { display: none; }
+.app.group-multi #string-hint { display: block; }
+.app.group-multi #string-selector { opacity: 0.4; pointer-events: none; }
 
 /* ---------------- Footer ---------------- */
 .app-footer {
@@ -381,6 +446,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .note-text.pop,
+  .notes-row.pop,
   .fb-dot-group { animation: none; }
   .countdown-arc { transition: none; }
 }

@@ -50,6 +50,78 @@
     return n;
   }
 
+  /* ---- Scales & note groups -------------------------------------------- */
+  // Semitone offset of each scale degree (1..7) from the root.
+  const SCALE_STEPS = {
+    major: [0, 2, 4, 5, 7, 9, 11],
+    minor: [0, 2, 3, 5, 7, 8, 10], // natural minor
+  };
+  // Degrees (1-based, of the parent scale) used by the named "shapes".
+  const PENTATONIC_DEGREES = { major: [1, 2, 3, 5, 6], minor: [1, 3, 4, 5, 7] };
+  const TRIAD_DEGREES = [1, 3, 5];
+  // Distinct, readable colors for the notes within a group (1 per note).
+  const GROUP_COLORS = ["#2dd4a7", "#f0b429", "#4aa8ff", "#ff6b9d", "#a78bfa", "#ff8a4c", "#b6e34a"];
+  const ORDINALS = ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th"];
+
+  function randInt(n) { return Math.floor(Math.random() * n); }
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = randInt(i + 1);
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  // Pick `k` distinct values from `pool` (preserving nothing; result shuffled).
+  function sampleDistinct(pool, k) {
+    return shuffle(pool.slice()).slice(0, k);
+  }
+
+  // Chromatic index (0..11) of scale degree `d` for a root + scale type.
+  function degreeIndex(rootIndex, type, d) {
+    return (rootIndex + SCALE_STEPS[type][d - 1]) % 12;
+  }
+
+  // Build a meaningful group of `size` notes (3/5/7) from a random major/minor
+  // key. `mode` = "shape" (triad/pentatonic/scale), "degrees" (random scale
+  // degrees), or "mix" (randomly one or the other each call).
+  function generateGroup(size, mode) {
+    const rootIndex = randInt(12);
+    const type = Math.random() < 0.5 ? "major" : "minor";
+    const useShape = mode === "shape" || (mode === "mix" && Math.random() < 0.5);
+
+    let degrees;
+    let shapeName;
+    if (size >= 7) {
+      degrees = [1, 2, 3, 4, 5, 6, 7];
+      shapeName = "scale";
+    } else if (useShape && size === 3) {
+      degrees = TRIAD_DEGREES.slice();
+      shapeName = "triad";
+    } else if (useShape && size === 5) {
+      degrees = PENTATONIC_DEGREES[type].slice();
+      shapeName = "pentatonic";
+    } else {
+      degrees = sampleDistinct([1, 2, 3, 4, 5, 6, 7], size);
+      shapeName = "scale";
+    }
+    shuffle(degrees); // display order (e.g. 1, 6, 5 -> C, A, G)
+
+    const notes = degrees.map((d, i) => {
+      const index = degreeIndex(rootIndex, type, d);
+      return { degree: d, index, name: CHROMATIC[index], color: GROUP_COLORS[i % GROUP_COLORS.length] };
+    });
+    return {
+      rootName: CHROMATIC[rootIndex],
+      type,
+      shapeName,
+      label: `${CHROMATIC[rootIndex]} ${type} ${shapeName}`,
+      notes,
+      key: `${rootIndex}|${type}|${degrees.join(",")}`, // for dedupe
+    };
+  }
+
   /* ====================================================
      2. FRETBOARD SVG
      ==================================================== */
@@ -249,6 +321,26 @@
     });
   }
 
+  // Whole-fretboard view of a note group: every group note is dotted at all of
+  // its positions on all six strings, colored by the note's group color.
+  function showGroupDots(group) {
+    clearDots();
+    group.notes.forEach((n) => {
+      STRINGS.forEach((s, i) => {
+        const y = stringY(i);
+        for (let f = FRET_MIN; f <= FRET_MAX; f++) {
+          if ((s.openIndex + f) % 12 !== n.index) continue;
+          const g = svgEl("g", { class: "fb-gdot-group" });
+          g.appendChild(svgEl("circle", { class: "fb-gdot", cx: fretCenterX(f), cy: y, r: 13, fill: n.color }));
+          const t = svgEl("text", { class: "fb-gdot-label", x: fretCenterX(f), y: y });
+          t.textContent = n.name;
+          g.appendChild(t);
+          fb.dotLayer.appendChild(g);
+        }
+      });
+    });
+  }
+
   /* ====================================================
      3. TIMER ENGINE + DISPLAY
      ==================================================== */
@@ -260,8 +352,12 @@
     showNotes: false,     // all-notes reference map toggle
     stringIndex: 0,       // low E
     cycleMs: 5000,
+    groupSize: 1,         // notes per cycle: 1 (single) | 3 | 5 | 7
+    groupMode: "mix",     // group composition: "shape" | "degrees" | "mix"
     prevNote: null,
     currentNote: null,
+    currentGroup: null,
+    prevGroupKey: null,
     cycleStart: 0,
     rafId: null,
   };
@@ -281,12 +377,23 @@
     dom.noteText.classList.add("pop");
   }
 
+  // Draw the right thing on the board for the current state (or clear it).
+  function refreshBoard() {
+    if (!boardVisible()) { clearDots(); return; }
+    if (state.groupSize === 1) {
+      if (state.currentNote) showDots(state.stringIndex, state.currentNote);
+      else clearDots();
+    } else {
+      if (state.currentGroup) showGroupDots(state.currentGroup);
+      else clearDots();
+    }
+  }
+
   function renderNote(note) {
     dom.noteText.textContent = note;
     dom.noteText.classList.remove("is-empty");
     popNote();
-    if (boardVisible()) showDots(state.stringIndex, note);
-    else clearDots();
+    refreshBoard();
   }
 
   function nextNote() {
@@ -296,9 +403,58 @@
     renderNote(note);
   }
 
+  // Render a note group: colored chips + a scale annotation line + board dots.
+  function renderGroup(group) {
+    dom.notesRow.innerHTML = "";
+    group.notes.forEach((n) => {
+      const chip = document.createElement("span");
+      chip.className = "note-chip";
+      chip.style.background = n.color;
+      chip.textContent = n.name;
+      dom.notesRow.appendChild(chip);
+    });
+
+    const scale = document.createElement("span");
+    scale.className = "ga-scale";
+    scale.textContent = group.label;
+    dom.groupAnnotation.innerHTML = "";
+    dom.groupAnnotation.appendChild(scale);
+    dom.groupAnnotation.appendChild(document.createTextNode(" — "));
+    group.notes.forEach((n, i) => {
+      if (i) dom.groupAnnotation.appendChild(document.createTextNode(" · "));
+      const span = document.createElement("span");
+      span.className = "ga-note";
+      span.style.color = n.color;
+      span.textContent = `${ORDINALS[n.degree]} ${n.name}`;
+      dom.groupAnnotation.appendChild(span);
+    });
+
+    dom.notesRow.classList.remove("pop");
+    void dom.notesRow.offsetWidth;
+    dom.notesRow.classList.add("pop");
+    refreshBoard();
+  }
+
+  function nextGroup() {
+    let group;
+    do {
+      group = generateGroup(state.groupSize, state.groupMode);
+    } while (group.key === state.prevGroupKey);
+    state.currentGroup = group;
+    state.prevGroupKey = group.key;
+    renderGroup(group);
+  }
+
+  // Advance one cycle, dispatching on the selected group size.
+  function advance() {
+    if (state.groupSize === 1) nextNote();
+    else nextGroup();
+  }
+
   function updateCountdown(progress) {
-    // progress 0 -> full ring, 1 -> empty
+    // progress 0 -> full (ring drawn / bar full), 1 -> empty
     dom.countdownArc.style.strokeDashoffset = (CIRC * progress).toFixed(2);
+    dom.countdownBarFill.style.width = ((1 - progress) * 100).toFixed(1) + "%";
   }
 
   function tick(now) {
@@ -306,7 +462,7 @@
     const elapsed = now - state.cycleStart;
     let progress = elapsed / state.cycleMs;
     if (progress >= 1) {
-      nextNote();
+      advance();
       state.cycleStart = now;
       progress = 0;
     }
@@ -319,12 +475,19 @@
     state.cycleMs = readCycleMs();
     state.running = true;
     state.prevNote = null;
+    state.prevGroupKey = null;
     dom.startStop.textContent = "Stop";
     dom.startStop.classList.add("is-running");
-    nextNote();                     // first note immediately
+    advance();                      // first note/group immediately
     state.cycleStart = performance.now();
     updateCountdown(0);
     state.rafId = requestAnimationFrame(tick);
+  }
+
+  function clearGroupDisplay() {
+    dom.notesRow.innerHTML = "";
+    dom.groupAnnotation.innerHTML = "";
+    state.currentGroup = null;
   }
 
   function stop() {
@@ -336,8 +499,10 @@
     dom.startStop.classList.remove("is-running");
     dom.noteText.textContent = "—";
     dom.noteText.classList.add("is-empty");
+    state.currentNote = null;
+    clearGroupDisplay();
     clearDots();
-    updateCountdown(1);             // empty ring
+    updateCountdown(1);             // empty ring / bar
   }
 
   function toggleRun() { state.running ? stop() : start(); }
@@ -377,8 +542,7 @@
     });
     dom.stringReadout.textContent = STRINGS[i].readout;
     setSelectedString(i);
-    // Re-render the active note's dots live whenever the board is visible.
-    if (boardVisible() && state.currentNote) showDots(i, state.currentNote);
+    refreshBoard(); // re-render live (single-note mode uses the selected string)
   }
 
   function setMode(mode) {
@@ -392,8 +556,7 @@
     dom.modeHint.textContent = mode === "guide"
       ? "Guide shows the fretboard with the note's position."
       : "Practice shows only the note name — no diagram.";
-    if (boardVisible() && state.currentNote) showDots(state.stringIndex, state.currentNote);
-    else clearDots();
+    refreshBoard();
   }
 
   function setShowNotes(on) {
@@ -403,9 +566,34 @@
     dom.showNotesToggle.setAttribute("aria-checked", on ? "true" : "false");
     renderAllNotes(on);
     // Toggling the map can reveal/hide the board (Practice mode); keep the
-    // active drill note's dots in sync with the board's visibility.
-    if (boardVisible() && state.currentNote) showDots(state.stringIndex, state.currentNote);
-    else clearDots();
+    // active note/group dots in sync with the board's visibility.
+    refreshBoard();
+  }
+
+  function setGroupSize(n) {
+    state.groupSize = n;
+    const multi = n > 1;
+    dom.app.classList.toggle("group-multi", multi);
+    Array.from(dom.groupSelector.children).forEach((btn) => {
+      const active = Number(btn.dataset.group) === n;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-checked", active ? "true" : "false");
+    });
+    if (state.running) {
+      // Show a fresh note/group of the new size and restart the cycle cleanly.
+      state.prevNote = null;
+      state.prevGroupKey = null;
+      advance();
+      state.cycleStart = performance.now();
+      updateCountdown(0);
+    } else {
+      // Idle: clear both displays.
+      state.currentNote = null;
+      clearGroupDisplay();
+      dom.noteText.textContent = "—";
+      dom.noteText.classList.add("is-empty");
+      clearDots();
+    }
   }
 
   function setCyclePreset(seconds) {
@@ -427,10 +615,14 @@
     dom.modeToggle = document.getElementById("mode-toggle");
     dom.modeHint = document.getElementById("mode-hint");
     dom.showNotesToggle = document.getElementById("show-notes-toggle");
+    dom.groupSelector = document.getElementById("group-selector");
     dom.startStop = document.getElementById("start-stop");
     dom.noteText = document.getElementById("note-text");
     dom.stringReadout = document.getElementById("string-readout");
     dom.countdownArc = document.getElementById("countdown-arc");
+    dom.countdownBarFill = document.getElementById("countdown-bar-fill");
+    dom.notesRow = document.getElementById("notes-row");
+    dom.groupAnnotation = document.getElementById("group-annotation");
 
     // Countdown ring setup (idle = empty).
     dom.countdownArc.style.strokeDasharray = CIRC.toFixed(2);
@@ -443,6 +635,7 @@
     selectString(state.stringIndex);
     setMode(state.mode);
     setShowNotes(state.showNotes);
+    setGroupSize(state.groupSize);
 
     // Highlight the matching cycle preset (default 5s).
     Array.from(dom.cyclePresets.children).forEach((btn) => {
@@ -473,6 +666,10 @@
       }
     });
     dom.showNotesToggle.addEventListener("click", () => setShowNotes(!state.showNotes));
+    dom.groupSelector.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-group]");
+      if (btn) setGroupSize(Number(btn.dataset.group));
+    });
     dom.startStop.addEventListener("click", toggleRun);
 
     // Spacebar toggles Start/Stop (ignore when a button/input is focused so it
